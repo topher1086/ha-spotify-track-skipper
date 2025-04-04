@@ -3,7 +3,7 @@ FROM ghcr.io/home-assistant/amd64-base:latest
 
 # Copy data for add-on
 COPY run.sh /
-COPY snuggler.py /
+COPY spotify.py /
 COPY requirements.txt /
 RUN chmod a+x /run.sh
 
