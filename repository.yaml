@@ -1,0 +1,4 @@
+# https://developers.home-assistant.io/docs/add-ons/repository#repository-configuration
+name: Chris's Home Assistant Spotify Skipper Addon
+url: "https://github.com/topher1086/ha-spotify-track-skipper"
+maintainer: Chris Christensen
