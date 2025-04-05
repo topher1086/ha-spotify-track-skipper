@@ -1,6 +1,6 @@
 name: "Spotify Repeat Skipper"
 description: "Spotify Skipper Addon"
-version: "2.0.3"
+version: "2.0.4"
 slug: "spotify_track_skipper"
 init: false
 arch:
@@ -11,10 +11,12 @@ arch:
   - i386
 options:
   spotify_media_players: null
+  skip_enabled_helpers: null
   block_for_x_hours: 30
   logging_level: INFO
 schema:
   spotify_media_players: str
+  skip_enabled_helpers: str
   block_for_x_hours: int(1,300)
   logging_level: list(DEBUG|INFO|WARN|ERROR|CRITICAL)
 homeassistant_api: true

@@ -10,6 +10,8 @@ import traceback
 import websockets
 import pickle
 
+from requests import get
+
 
 in_addon = not __file__.startswith("/workspaces/") and not __file__.startswith(
     "/home/chris/projects/"
@@ -63,9 +65,14 @@ def time_as_int():
 
 
 class Tracker:
-    def __init__(self, media_player_id: str, block_hours: float = 24):
+
+    def __init__(
+        self, media_player_id: str, skip_enabled_id: str, block_hours: float = 24
+    ):
 
         self.media_player_id = media_player_id
+        self.skip_enabled_id = skip_enabled_id
+        self.skip_enabled = None
         self.block_hours = block_hours
 
         try:
@@ -79,6 +86,10 @@ class Tracker:
             logger.info(f"Created new track dict for {self.media_player_id}")
 
     def should_skip_track(self, media_id) -> bool:
+
+        if self.skip_enabled is None:
+            self.get_skip_enabled_status()
+
         track_time = self.track_dict.get(media_id)
 
         # the track has not been played
@@ -91,9 +102,26 @@ class Tracker:
             # update the dict with the new timestamp
             self.track_dict[media_id] = time_as_int()
             return False
-        else:
-            # it hasn't been long enough to replay track
-            return True
+
+        # it hasn't been long enough to replay track
+        # should skip here, but only if skip enabled
+        return self.skip_enabled is True
+
+    def get_skip_enabled_status(self):
+        get_value_url = f"{base_url}/states/{self.skip_enabled_id}"
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+
+        logger.info(f"Getting skip enabled status for {self.skip_enabled_id}")
+
+        get_r = get(url=get_value_url, headers=headers)
+
+        if get_r.ok:
+            r_json = get_r.json()
+            self.skip_enabled = r_json["state"] == "on"
 
     def cleanup_tracks(self):
 
@@ -119,9 +147,11 @@ class Tracker:
 async def spotify_monitor():
     cleanup_tracks_interval_secs = 300
     spotify_player_ids = settings["spotify_media_players"].split(",")
+    skip_enabled_ids = settings["skip_enabled_helpers"].split(",")
 
     player_dict = {
-        x: Tracker(x, settings["block_for_x_hours"]) for x in spotify_player_ids
+        x: Tracker(x, skip_enabled_ids[i], settings["block_for_x_hours"])
+        for i, x in enumerate(spotify_player_ids)
     }
 
     while True:
@@ -180,6 +210,28 @@ async def spotify_monitor():
                             f"Unable to subscribe to {media_player_id} triggers: {sub_resp}"
                         )
 
+                for skip_enabled_id in skip_enabled_ids:
+
+                    msg = {
+                        "id": get_new_tx_id(),
+                        "type": "subscribe_trigger",
+                        "trigger": {
+                            "platform": "state",
+                            "entity_id": skip_enabled_id,
+                        },
+                    }
+
+                    await ha_ws.send(json.dumps(msg))
+                    sub_resp = await ha_ws.recv()
+                    sub_resp_data = json.loads(sub_resp)
+                    if not sub_resp_data["success"]:
+                        logger.critical(
+                            f"Unable to subscribe to {skip_enabled_id}: {sub_resp}"
+                        )
+                        raise ConnectionError(
+                            f"Unable to subscribe to {skip_enabled_id}: {sub_resp}"
+                        )
+
                 st = time_as_int() - 999999
                 while ha_ws.open:
 
@@ -196,6 +248,25 @@ async def spotify_monitor():
                         entity_id = msg_json["event"]["variables"]["trigger"][
                             "to_state"
                         ]["entity_id"]
+
+                        if entity_id in skip_enabled_ids:
+                            skip_enabled_on = (
+                                msg_json["event"]["variables"]["trigger"]["to_state"][
+                                    "state"
+                                ]
+                                == "on"
+                            )
+
+                            for p in player_dict.values():
+                                if p.skip_enabled_id == entity_id:
+                                    p.skip_enabled = skip_enabled_on
+                                    logger.info(
+                                        f"Skip enabled changed to {skip_enabled_on} for {p.media_player_id}"
+                                    )
+                                    break
+
+                            continue
+
                         to_attributes = msg_json["event"]["variables"]["trigger"][
                             "to_state"
                         ]["attributes"]
