@@ -1,6 +1,6 @@
 name: "Spotify Repeat Skipper"
 description: "Spotify Skipper Addon"
-version: "2.0.4"
+version: "2.0.5"
 slug: "spotify_track_skipper"
 init: false
 arch:
