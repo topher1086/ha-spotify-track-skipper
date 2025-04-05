@@ -72,7 +72,7 @@ class Tracker:
             with open(f"./data/{self.media_player_id}.pickle", "rb") as handle:
                 self.track_dict = pickle.load(handle)
                 logger.info(
-                    f"Loaded {self.media_player_id} track dict from pickle storage"
+                    f"Loaded {self.media_player_id} track dict from pickle storage - {len(self.track_dict)} items"
                 )
         except FileNotFoundError:
             self.track_dict = {}
@@ -111,6 +111,9 @@ class Tracker:
 
         with open(f"./data/{self.media_player_id}.pickle", "wb") as handle:
             pickle.dump(self.track_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            logger.info(
+                f"Saved {self.media_player_id} track dict to pickle storage - {len(self.track_dict)} items"
+            )
 
 
 async def spotify_monitor():
