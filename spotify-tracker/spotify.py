@@ -8,6 +8,7 @@ from time import time
 from os import environ
 import traceback
 import websockets
+import pickle
 
 
 in_addon = not __file__.startswith("/workspaces/") and not __file__.startswith(
@@ -57,24 +58,38 @@ def get_new_tx_id():
     return tx_id
 
 
+def time_as_int():
+    return int(time())
+
+
 class Tracker:
     def __init__(self, media_player_id: str, block_hours: float = 24):
-        self.track_dict = {}
+
         self.media_player_id = media_player_id
         self.block_hours = block_hours
+
+        try:
+            with open(f"./data/{self.media_player_id}.pickle", "rb") as handle:
+                self.track_dict = pickle.load(handle)
+                logger.info(
+                    f"Loaded {self.media_player_id} track dict from pickle storage"
+                )
+        except FileNotFoundError:
+            self.track_dict = {}
+            logger.info(f"Created new track dict for {self.media_player_id}")
 
     def should_skip_track(self, media_id) -> bool:
         track_time = self.track_dict.get(media_id)
 
         # the track has not been played
         if track_time is None:
-            self.track_dict[media_id] = time()
+            self.track_dict[media_id] = time_as_int()
             return False
 
         # it's been long enough that we can replay the track
-        if time() - track_time > self.block_hours * 3600:
+        if time_as_int() - track_time > self.block_hours * 3600:
             # update the dict with the new timestamp
-            self.track_dict[media_id] = time()
+            self.track_dict[media_id] = time_as_int()
             return False
         else:
             # it hasn't been long enough to replay track
@@ -83,7 +98,7 @@ class Tracker:
     def cleanup_tracks(self):
 
         for media_id, track_time in self.track_dict.copy().items():
-            if time() - track_time > self.block_hours * 3600:
+            if time_as_int() - track_time > self.block_hours * 3600:
                 try:
                     logger.info(
                         f"Cleaning up track in {self.media_player_id}: {media_id}"
@@ -93,6 +108,9 @@ class Tracker:
                     logger.warning(
                         f"Exception cleaning up track in {self.media_player_id}: {media_id}: {type(e)} -- {e}"
                     )
+
+        with open(f"./data/{self.media_player_id}.pickle", "wb") as handle:
+            pickle.dump(self.track_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 async def spotify_monitor():
@@ -159,7 +177,7 @@ async def spotify_monitor():
                             f"Unable to subscribe to {media_player_id} triggers: {sub_resp}"
                         )
 
-                st = time() - 999999
+                st = time_as_int() - 999999
                 while ha_ws.open:
 
                     msg = await ha_ws.recv()
@@ -208,14 +226,14 @@ async def spotify_monitor():
                         )
                         continue
 
-                    if st + cleanup_tracks_interval_secs < time():
+                    if st + cleanup_tracks_interval_secs < time_as_int():
                         logger.info(
                             f"Cleanup interval of {cleanup_tracks_interval_secs:,} seconds passed, running cleanup"
                         )
                         for p in player_dict.values():
                             p.cleanup_tracks()
 
-                    st = time()
+                    st = time_as_int()
 
         except Exception as e:
             logger.critical(traceback.print_exc())
