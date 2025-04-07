@@ -145,6 +145,15 @@ class Tracker:
 
 
 async def spotify_monitor():
+
+    logger.info("Starting Spotify Monitor")
+    logger.info(f"Base URL: {base_url}")
+    logger.info(f'Block hours: {settings["block_for_x_hours"]}')
+
+    logger.info(f"Spotify media players: {settings['spotify_media_players']}")
+    logger.info(f"Skip enabled helpers: {settings['skip_enabled_helpers']}")
+    logger.info(f"Logging level: {settings['logging_level']}")
+
     cleanup_tracks_interval_secs = 300
     spotify_player_ids = settings["spotify_media_players"].split(",")
     skip_enabled_ids = settings["skip_enabled_helpers"].split(",")
@@ -307,7 +316,7 @@ async def spotify_monitor():
                         for p in player_dict.values():
                             p.cleanup_tracks()
 
-                    st = time_as_int()
+                        st = time_as_int()
 
         except Exception as e:
             logger.critical(traceback.print_exc())
